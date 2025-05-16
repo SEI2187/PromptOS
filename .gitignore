@@ -1,0 +1,29 @@
+# Build artifacts
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.lib
+*.so
+*.dll
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Temporary and cache files
+/build/
+/dist/
+/tmp/
+*.log
+
+# Dependencies
+/node_modules/
+/vendor/
