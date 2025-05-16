@@ -5,21 +5,45 @@
 $BuildDir = "build"
 $IsoFile = "promptos.iso"
 
-# Check for required tools
+# Check for required tools and provide detailed setup instructions
 function Check-Requirements {
     Write-Host "Checking required tools..."
+    $MissingTools = $false
     
     # Check for NASM
     if (!(Get-Command nasm -ErrorAction SilentlyContinue)) {
-        Write-Host "Error: NASM is not installed or not in PATH"
-        Write-Host "Please download NASM from https://www.nasm.us and add it to your PATH"
-        exit 1
+        Write-Host "`nNASM is not installed or not in PATH. Please follow these steps:`n"
+        Write-Host "1. Download NASM from https://www.nasm.us"
+        Write-Host "2. Install NASM to a location like 'C:\Program Files\NASM'"
+        Write-Host "3. Add NASM to PATH:"
+        Write-Host "   a. Open System Properties (Win + R, type 'sysdm.cpl')"
+        Write-Host "   b. Click 'Environment Variables'"
+        Write-Host "   c. Under 'System Variables', find and select 'Path'"
+        Write-Host "   d. Click 'Edit' and add the NASM installation directory"
+        Write-Host "   e. Click 'OK' on all windows"
+        Write-Host "4. Open a new PowerShell window after setting PATH`n"
+        $MissingTools = $true
     }
     
     # Check for oscdimg (part of Windows ADK)
     if (!(Get-Command oscdimg -ErrorAction SilentlyContinue)) {
-        Write-Host "Error: oscdimg is not found. Please install Windows ADK"
-        Write-Host "Download from: https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install"
+        Write-Host "`noscdimg is not found. Please follow these steps to install Windows ADK:`n"
+        Write-Host "1. Download Windows ADK from:"
+        Write-Host "   https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install"
+        Write-Host "2. Run the installer and select 'Deployment Tools'"
+        Write-Host "3. Add Windows ADK Deployment Tools to PATH:"
+        Write-Host "   a. Open System Properties (Win + R, type 'sysdm.cpl')"
+        Write-Host "   b. Click 'Environment Variables'"
+        Write-Host "   c. Under 'System Variables', find and select 'Path'"
+        Write-Host "   d. Click 'Edit' and add:"
+        Write-Host "      'C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg'"
+        Write-Host "   e. Click 'OK' on all windows"
+        Write-Host "4. Open a new PowerShell window after setting PATH`n"
+        $MissingTools = $true
+    }
+    
+    if ($MissingTools) {
+        Write-Host "Please install the missing tools and update PATH before running this script again."
         exit 1
     }
 }
