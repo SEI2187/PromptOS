@@ -106,14 +106,14 @@ function Create-ISO {
     Write-Host "Using boot binary from: $bootBinPath"
     Write-Host "Creating ISO file: $IsoFile"
     
+    # Convert paths to proper format for oscdimg
+    $bootBinPathFormatted = $bootBinPath.Replace('\', '\\')
+
     $oscdimgArgs = @(
-        "-b$bootBinPath",    # Specify boot binary
-        "-p00",             # Platform ID for x86
-        "-n",              # New image
-        "-lPromptOS",       # Volume label
-        "-u2",             # UDF + ISO9660 + Joliet format
-        $BuildDir,          # Source directory
-        $IsoFile            # Output ISO file
+        "-bootdata:2#p0,e,b$bootBinPathFormatted#pEF,e,b$bootBinPathFormatted",  # Boot data with proper path
+        "-u1",                    # ISO9660 + Joliet format
+        $BuildDir,                 # Source directory
+        $IsoFile                   # Output ISO file
     )
     
     $process = Start-Process -FilePath $OscdimgPath -ArgumentList $oscdimgArgs -NoNewWindow -Wait -PassThru
