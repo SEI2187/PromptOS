@@ -15,24 +15,51 @@ start:
     mov ss, ax                  ; Set SS=0
     mov sp, 0x7C00             ; Set up stack pointer
     sti                         ; Enable interrupts
+    mov [boot_drive], dl       ; Store boot drive number
 
     ; Print boot message
     mov si, boot_msg
     call print_string
+
+    ; Reset disk system
+    xor ax, ax
+    mov dl, [boot_drive]
+    int 0x13
+    jc disk_error
 
     ; Load Stage 2
     mov ax, STAGE2_LOAD_SEGMENT
     mov es, ax                  ; ES:BX = where to load stage 2
     xor bx, bx
 
+    ; Get drive parameters
+    push es
+    mov ah, 0x08               ; Get drive parameters function
+    mov dl, [boot_drive]       ; Drive number
+    int 0x13
+    jc disk_error              ; Error getting drive parameters
+    pop es
+
+    mov di, 3                  ; Retry counter
+.retry:
     mov ah, 0x02               ; BIOS read sector function
-    mov al, 6                  ; Number of sectors to read
+    mov al, 8                  ; Number of sectors to read (increased for stage2)
     mov ch, 0                  ; Cylinder 0
     mov cl, 2                  ; Start from sector 2
     mov dh, 0                  ; Head 0
     mov dl, [boot_drive]       ; Drive number
     int 0x13                   ; BIOS interrupt
-    jc disk_error              ; If carry flag set, error occurred
+    jnc .success               ; If no carry, read successful
+
+    ; On error, reset disk and retry
+    mov ah, 0x00               ; Reset disk function
+    mov dl, [boot_drive]       ; Drive number
+    int 0x13                   ; Reset disk system
+    dec di                     ; Decrement retry counter
+    jnz .retry                 ; Try again if retries remain
+    jmp disk_error             ; All retries failed
+
+.success:
 
     ; Jump to Stage 2
     jmp STAGE2_LOAD_SEGMENT:STAGE2_LOAD_OFFSET
