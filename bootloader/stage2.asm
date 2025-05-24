@@ -95,17 +95,57 @@ protected_mode:
     mov dword [eax+0x21C], 0    ; ramdisk_size (to be filled)
     mov dword [eax+0x228], 0    ; cmd_line_ptr
 
-    ; Load kernel
-    mov edi, KERNEL_LOAD_ADDR
-    ; TODO: Implement actual kernel loading from disk
+    ; Load kernel from disk
+    mov eax, 0x02                ; BIOS read sectors function
+    mov cx, SETUP_SECTS          ; Number of sectors to read
+    mov bx, KERNEL_LOAD_ADDR     ; Buffer to load into
+    mov dl, [boot_drive]         ; Drive number
+    mov dh, 0                    ; Head 0
+    mov ch, 0                    ; Cylinder 0
+    mov cl, 2                    ; Start from sector 2
+    int 0x13                     ; BIOS disk interrupt
+    jc kernel_load_error         ; If carry flag set, error occurred
 
-    ; Jump to kernel
+    ; Load initrd
+    mov eax, 0x02                ; BIOS read sectors function
+    mov cx, 32                   ; Number of sectors for initrd (adjust as needed)
+    mov bx, INITRD_LOAD_ADDR     ; Buffer to load into
+    mov dl, [boot_drive]         ; Drive number
+    mov dh, 0                    ; Head 0
+    mov ch, 0                    ; Cylinder 0
+    mov cl, 6                    ; Start from sector 6 (after kernel)
+    int 0x13                     ; BIOS disk interrupt
+    jc initrd_load_error         ; If carry flag set, error occurred
+
+    ; Set up command line
+    mov esi, kernel_cmdline      ; Source: command line string
+    mov edi, 0x92000            ; Destination: command line buffer
+    mov ecx, cmdline_len         ; Length of command line
+    rep movsb                    ; Copy command line
+
+    ; Update boot parameters
+    mov eax, BOOTPARAM_ADDR
+    mov dword [eax+0x228], 0x92000  ; Set command line pointer
+    mov dword [eax+0x21C], 0x100000 ; Set initrd size (adjust as needed)
+
+    ; Jump to kernel entry point
     mov eax, KERNEL_LOAD_ADDR
+    add eax, 0x1000              ; Kernel entry point offset
     jmp eax
 
     ; Should never reach here
     cli
     hlt
+
+kernel_load_error:
+    mov si, kernel_error_msg
+    call print_string
+    jmp $
+
+initrd_load_error:
+    mov si, initrd_error_msg
+    call print_string
+    jmp $
 
 ; Global Descriptor Table
 gdt_start:
@@ -137,3 +177,8 @@ gdt_descriptor:
 ; Data
 stage2_msg db 'PromptOS Stage 2 Bootloader...', 13, 10, 0
 a20_error_msg db 'A20 Line Enable Failed!', 13, 10, 0
+kernel_error_msg db 'Kernel Load Failed!', 13, 10, 0
+initrd_error_msg db 'InitRD Load Failed!', 13, 10, 0
+kernel_cmdline db 'root=/dev/ram0 init=/sbin/init console=tty0', 0
+cmdline_len equ $ - kernel_cmdline
+boot_drive db 0

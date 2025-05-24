@@ -6,11 +6,28 @@ $BuildDir = "build"
 $IsoFile = "promptos.iso"
 $NASMPath = "C:\Program Files\NASM\nasm.exe"
 $OscdimgPath = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg\oscdimg.exe"
+$KernelVersion = "5.15"
+$KernelSourceURL = "https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-$KernelVersion.tar.xz"
+$WSLDistro = "Ubuntu"
 
 # Check for required tools and provide detailed setup instructions
 function Check-Requirements {
     Write-Host "Checking required tools..."
     $MissingTools = $false
+    
+    # Check for WSL
+    $wslCheck = wsl --list
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "`nWindows Subsystem for Linux (WSL) is not installed`n"
+        Write-Host "Please follow these steps to install WSL:`n"
+        Write-Host "1. Open PowerShell as Administrator"
+        Write-Host "2. Run: wsl --install"
+        Write-Host "3. Restart your computer"
+        Write-Host "4. Complete the Ubuntu setup when it launches`n"
+        $MissingTools = $true
+    } else {
+        Write-Host "Found WSL installation"
+    }
     
     # Check for NASM
     if (-not (Test-Path -Path $NASMPath -PathType Leaf)) {
@@ -48,6 +65,51 @@ function Create-BuildStructure {
     Write-Host "Creating build directory structure..."
     New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
     New-Item -ItemType Directory -Force -Path "$BuildDir\boot" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$BuildDir\kernel" | Out-Null
+}
+
+# Download and compile Linux kernel
+function Build-Kernel {
+    Write-Host "Building Linux kernel..."
+    $kernelDir = "$BuildDir\kernel"
+    $kernelArchive = "linux-$KernelVersion.tar.xz"
+    $kernelSource = "linux-$KernelVersion"
+
+    Push-Location $kernelDir
+
+    # Download kernel source if not exists
+    if (-not (Test-Path $kernelArchive)) {
+        Write-Host "Downloading Linux kernel source..."
+        Invoke-WebRequest -Uri $KernelSourceURL -OutFile $kernelArchive
+    }
+
+    # Extract kernel source
+    if (-not (Test-Path $kernelSource)) {
+        Write-Host "Extracting kernel source..."
+        wsl tar xf $kernelArchive
+    }
+
+    # Copy our kernel config
+    Copy-Item "..\..\kernel\kernel_config" "$kernelSource\.config"
+
+    # Build kernel using WSL
+    Write-Host "Compiling kernel (this may take a while)..."
+    Push-Location $kernelSource
+    wsl -d $WSLDistro -e bash -c "
+        sudo apt-get update && \
+        sudo apt-get install -y build-essential flex bison libssl-dev libelf-dev && \
+        make -j$(nproc) && \
+        cp arch/x86/boot/bzImage ../../boot/vmlinuz"
+    Pop-Location
+
+    Pop-Location
+
+    if (-not (Test-Path "$BuildDir\boot\vmlinuz")) {
+        Write-Host "Error: Kernel compilation failed"
+        exit 1
+    }
+
+    Write-Host "Successfully built kernel"
 }
 
 # Build bootloader
@@ -140,6 +202,7 @@ Write-Host "Starting PromptOS build process..."
 
 Check-Requirements
 Create-BuildStructure
+Build-Kernel
 Build-Bootloader
 Create-ISO
 

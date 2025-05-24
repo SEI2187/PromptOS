@@ -1,21 +1,27 @@
 ; PromptOS Bootloader
 ; Stage 1 bootloader - loads Stage 2 and provides basic system initialization
 
-[BITS 16]                       ; We start in 16-bit real mode
-[ORG 0x7C00]                    ; BIOS loads us at this address
+; Multiboot header
+MULTIBOOT_MAGIC    equ 0x1BADB002
+MULTIBOOT_FLAGS    equ 0x00000003
+MULTIBOOT_CHECKSUM equ -(MULTIBOOT_MAGIC + MULTIBOOT_FLAGS)
 
-STAGE2_LOAD_SEGMENT EQU 0x2000  ; Where we'll load stage 2
-STAGE2_LOAD_OFFSET  EQU 0x0000
+[BITS 32]
+section .multiboot
+align 4
+    dd MULTIBOOT_MAGIC
+    dd MULTIBOOT_FLAGS
+    dd MULTIBOOT_CHECKSUM
 
-start:
-    cli                         ; Disable interrupts
-    xor ax, ax                  ; Zero AX register
-    mov ds, ax                  ; Set DS=0
-    mov es, ax                  ; Set ES=0
-    mov ss, ax                  ; Set SS=0
-    mov sp, 0x7C00             ; Set up stack pointer
-    sti                         ; Enable interrupts
-    mov [boot_drive], dl       ; Store boot drive number
+section .text
+global _start
+
+_start:
+    ; Set up stack
+    mov esp, stack_top
+
+    ; Save multiboot info pointer
+    push ebx
 
     ; Print boot message
     mov si, boot_msg
