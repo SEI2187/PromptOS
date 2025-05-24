@@ -1,9 +1,15 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/mount.h>
+#include <stdio.h>
 
 // Maximum number of services that can be managed
 #define MAX_SERVICES 64
+#define SHELL_PATH "/bin/bash"
+#define DEFAULT_PATH "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 // Service states
 typedef enum {
@@ -30,8 +36,42 @@ typedef struct {
 static service_t services[MAX_SERVICES];
 static int service_count = 0;
 
+// Set up basic environment
+void setup_environment(void) {
+    setenv("PATH", DEFAULT_PATH, 1);
+    setenv("TERM", "linux", 1);
+    setenv("HOME", "/root", 1);
+    setenv("SHELL", SHELL_PATH, 1);
+}
+
+// Launch interactive shell
+void launch_shell(void) {
+    pid_t pid = fork();
+    
+    if (pid < 0) {
+        perror("fork");
+        return;
+    }
+    
+    if (pid == 0) {
+        // Child process
+        execl(SHELL_PATH, "bash", NULL);
+        perror("execl");
+        exit(1);
+    }
+    
+    // Parent process
+    int status;
+    waitpid(pid, &status, 0);
+}
+
 // Initialize the init system
 bool init_system_start(void) {
+    // Mount essential filesystems
+    mount("proc", "/proc", "proc", 0, NULL);
+    mount("sysfs", "/sys", "sysfs", 0, NULL);
+    mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
+    
     // Clear service table
     memset(services, 0, sizeof(services));
     
@@ -41,8 +81,18 @@ bool init_system_start(void) {
     register_service("network", "/sbin/networkd", true, 3);
     register_service("storage", "/sbin/storaged", true, 3);
     
+    // Set up environment
+    setup_environment();
+    
     // Start all autostart services
-    return start_autostart_services();
+    if (!start_autostart_services()) {
+        return false;
+    }
+    
+    // Launch shell
+    launch_shell();
+    
+    return true;
 }
 
 // Register a new service

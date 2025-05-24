@@ -1,12 +1,17 @@
 ; PromptOS Stage 2 Bootloader
-; Handles advanced system initialization and kernel loading
+; Handles Linux kernel loading and boot protocol
 
 [BITS 16]                       ; Start in 16-bit real mode
 [ORG 0x0000]                    ; We are loaded at segment 0x2000 by stage 1
 
-KERNEL_LOAD_SEGMENT EQU 0x1000  ; Where we'll load the kernel
-KERNEL_LOAD_OFFSET  EQU 0x0000
-STACK_SEGMENT      EQU 0x9000  ; Stack segment
+; Linux boot protocol constants
+BOOT_SIGNATURE     EQU 0xAA55   ; Boot signature
+SETUP_SECTS        EQU 4        ; Number of setup sectors
+SYSSIZE            EQU 0x8000   ; Size of protected-mode code in paragraphs
+BOOTPARAM_ADDR     EQU 0x90000  ; Boot parameter block address
+KERNEL_LOAD_ADDR   EQU 0x100000 ; Where to load the kernel (1MB)
+INITRD_LOAD_ADDR   EQU 0x800000 ; Where to load the initrd (8MB)
+STACK_SEGMENT      EQU 0x9000   ; Stack segment
 
 start:
     ; Set up segments and stack
@@ -80,8 +85,25 @@ protected_mode:
     ; Set up stack
     mov esp, 0x90000
 
-    ; TODO: Load kernel
-    ; For now, just halt
+    ; Set up boot parameters
+    mov eax, BOOTPARAM_ADDR
+    mov dword [eax], 0x197      ; Header signature (HdrS)
+    mov word [eax+0x1F1], 0x0   ; Boot protocol version 2.00
+    mov byte [eax+0x210], 0x80  ; Type of loader: boot protocol 2.00+
+    mov byte [eax+0x211], 0x00  ; Loader flags
+    mov dword [eax+0x218], INITRD_LOAD_ADDR  ; ramdisk_image
+    mov dword [eax+0x21C], 0    ; ramdisk_size (to be filled)
+    mov dword [eax+0x228], 0    ; cmd_line_ptr
+
+    ; Load kernel
+    mov edi, KERNEL_LOAD_ADDR
+    ; TODO: Implement actual kernel loading from disk
+
+    ; Jump to kernel
+    mov eax, KERNEL_LOAD_ADDR
+    jmp eax
+
+    ; Should never reach here
     cli
     hlt
 
