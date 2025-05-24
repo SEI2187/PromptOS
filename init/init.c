@@ -80,6 +80,7 @@ bool init_system_start(void) {
     register_service("devd", "/sbin/devd", true, 2);
     register_service("network", "/sbin/networkd", true, 3);
     register_service("storage", "/sbin/storaged", true, 3);
+    register_service("neofetch", "/sbin/neofetch", true, 10);
     
     // Set up environment
     setup_environment();
