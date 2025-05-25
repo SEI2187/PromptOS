@@ -12,7 +12,7 @@
 
 // ASCII art logo for PromptOS
 static const char* LOGO[] = {
-    "ts is a test btw",
+    "blahaj hehehehe",
 
     NULL
 };

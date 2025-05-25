@@ -75,37 +75,92 @@ function Build-Kernel {
     $kernelArchive = "linux-$KernelVersion.tar.xz"
     $kernelSource = "linux-$KernelVersion"
 
+    # Verify WSL is running and Ubuntu is installed
+    $wslStatus = wsl -l -v | Select-String $WSLDistro
+    if (-not $wslStatus) {
+        Write-Host "Error: $WSLDistro is not installed in WSL"
+        Write-Host "Please run 'wsl --install -d $WSLDistro' and try again"
+        exit 1
+    }
+
+    # Create kernel directory
+    New-Item -ItemType Directory -Force -Path $kernelDir | Out-Null
     Push-Location $kernelDir
 
     # Download kernel source if not exists
     if (-not (Test-Path $kernelArchive)) {
         Write-Host "Downloading Linux kernel source..."
-        Invoke-WebRequest -Uri $KernelSourceURL -OutFile $kernelArchive
+        try {
+            Invoke-WebRequest -Uri $KernelSourceURL -OutFile $kernelArchive -ErrorAction Stop
+        } catch {
+            Write-Host "Error: Failed to download kernel source:"
+            Write-Host $_.Exception.Message
+            exit 1
+        }
     }
 
     # Extract kernel source
     if (-not (Test-Path $kernelSource)) {
         Write-Host "Extracting kernel source..."
-        wsl tar xf $kernelArchive
+        $extractResult = wsl -d $WSLDistro -e bash -c "tar xf '$kernelArchive' 2>&1"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to extract kernel source:"
+            Write-Host $extractResult
+            exit 1
+        }
+    }
+
+    # Verify kernel config exists
+    $kernelConfigPath = "..\..\kernel\kernel_config"
+    if (-not (Test-Path $kernelConfigPath)) {
+        Write-Host "Error: Kernel config not found at: $kernelConfigPath"
+        exit 1
     }
 
     # Copy our kernel config
-    Copy-Item "..\..\kernel\kernel_config" "$kernelSource\.config"
+    Copy-Item $kernelConfigPath "$kernelSource\.config"
 
-    # Build kernel using WSL
-    Write-Host "Compiling kernel (this may take a while)..."
+    # Build kernel using WSL with better error handling
+    Write-Host "Setting up build environment (this may take a while)..."
     Push-Location $kernelSource
-    wsl -d $WSLDistro -e bash -c "
-        sudo apt-get update && \
-        sudo apt-get install -y build-essential flex bison libssl-dev libelf-dev && \
-        make -j$(nproc) && \
-        cp arch/x86/boot/bzImage ../../boot/vmlinuz"
-    Pop-Location
 
+    # Install dependencies with error checking
+    $setupResult = wsl -d $WSLDistro -e bash -c "
+        set -e
+        echo 'Updating package list...'
+        sudo apt-get update
+        echo 'Installing build dependencies...'
+        sudo apt-get install -y build-essential flex bison libssl-dev libelf-dev
+        echo 'Verifying build environment...'
+        which make gcc flex bison
+    "
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: Failed to setup build environment:"
+        Write-Host $setupResult
+        exit 1
+    }
+
+    Write-Host "Compiling kernel (this may take a while)..."
+    $buildResult = wsl -d $WSLDistro -e bash -c "
+        set -e
+        echo 'Configuring kernel...'
+        yes '' | make olddefconfig
+        echo 'Building kernel...'
+        make -j$(nproc)
+        echo 'Copying kernel image...'
+        cp arch/x86/boot/bzImage ../../boot/vmlinuz
+    "
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: Kernel compilation failed:"
+        Write-Host $buildResult
+        exit 1
+    }
+
+    Pop-Location
     Pop-Location
 
     if (-not (Test-Path "$BuildDir\boot\vmlinuz")) {
-        Write-Host "Error: Kernel compilation failed"
+        Write-Host "Error: Kernel compilation completed but vmlinuz was not created"
         exit 1
     }
 
