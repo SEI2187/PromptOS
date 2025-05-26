@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# !!! THIS DOESNT WORK YET !!!
+
 # PromptOS Build Script
 # This script assembles the bootloader and creates a bootable ISO
 
