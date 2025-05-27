@@ -76,13 +76,26 @@ function Build-Kernel {
     $kernelSource = "linux-$KernelVersion"
 
     # Verify WSL is running and Ubuntu is installed
-    $wslStatus = wsl -l -v | Select-String $WSLDistro
-    if (-not $wslStatus) {
-        Write-Host "Error: $WSLDistro is not installed in WSL"
-        Write-Host "Please run 'wsl --install -d $WSLDistro' and try again"
+    Write-Host "Checking WSL Ubuntu installation..."
+    Write-Host "Current WSL Status:"
+    $wslStatus = wsl --list --verbose
+    Write-Host $wslStatus
+    
+    # Match the exact format from WSL output
+    $ubuntuLine = $wslStatus | Out-String -Stream | Where-Object { $_.Trim() -match '^\*?\s*Ubuntu\s+Stopped\s+2$' }
+    if (-not $ubuntuLine) {
+        Write-Host "Error: Ubuntu is not installed in WSL"
+        Write-Host "Please run 'wsl --install -d Ubuntu' and try again"
         exit 1
     }
-
+    
+    Write-Host "Found Ubuntu in WSL"
+    
+    # Start Ubuntu
+    Write-Host "Starting Ubuntu WSL..."
+    wsl --distribution Ubuntu --user root --exec echo "Starting Ubuntu..."
+    Start-Sleep -Seconds 2
+    
     # Create kernel directory
     New-Item -ItemType Directory -Force -Path $kernelDir | Out-Null
     Push-Location $kernelDir
