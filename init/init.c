@@ -55,6 +55,7 @@ void launch_shell(void) {
     
     if (pid == 0) {
         // Child process
+
         execl(SHELL_PATH, "bash", NULL);
         perror("execl");
         exit(1);
