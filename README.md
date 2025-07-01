@@ -1,6 +1,6 @@
 # PromptOS
 
-PromptOS is a custom Linux-based operating system built from the ground up. This project aims to create a minimal, efficient, and customizable operating system using the Linux kernel.
+PromptOS is a custom Linux-based operating system built from the ground up
 
 ## Project Structure
 
